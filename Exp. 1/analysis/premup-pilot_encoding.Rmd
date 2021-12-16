@@ -1,0 +1,159 @@
+---
+title: "Analysis of day 2 session (encoding) on PREMUP-pilot. WORK IN PROGRESS"
+output: html_document
+---
+
+Author: Javier Ortiz-Tudela (Goethe Uni)
+
+```{r setup, include=FALSE}
+## Load libraries.
+library(ggpubr)
+library(rstatix)
+library(psycho)
+library(gridExtra)
+library(dplyr)
+
+## Set directories
+if(Sys.info()["sysname"]=="Linux"){
+  data_dir <- "/home/javier/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/"
+  out_dir <- "/home/javier/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/" 
+}else{
+  data_dir <- "/Users/javierortiz/Documents/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/"
+  out_dir <- "/Users/javierortiz/Documents/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/"
+}
+
+## Read-in the data
+full_name <- paste(data_dir, "group_task-rec.csv", sep="")
+
+# Since the data is in a CSV file, you can read it with the csvread function.
+temp <- read.csv2(full_name, sep=";")
+
+# The data file contains a lot of information that we will not need now.
+data <- subset(x = temp,
+               select = c("participant", "session", "enc_phase", "mem_phase", "enc_trialN", "enc_acc", "scn_condition", "scn_cat", "PE_level"))
+
+# We'll keep only trials for encoding (old and filler trials)
+data <- data %>% 
+  filter(data$enc_phase==1)
+
+```
+
+## Compute overall performance
+I will compute mean accuracy in both phases of Day2. I will use this information to discard participants below. 
+
+```{r}
+# Aggregate
+agg_data <- data %>% 
+  group_by(participant) %>% 
+  summarise(mean_acc = mean(enc_acc),
+            sd_acc = sd(enc_acc))
+# Plot
+ggplot(data = agg_data,
+       mapping = aes(x=1, y = mean_acc)) +
+  geom_boxplot() +
+  geom_jitter(shape=10, position=position_jitter(0.2)) +
+  ylab("Mean acc") + 
+  ylim(c(0,1)) +
+  labs(title = paste("Overall prediction acc"))
+```
+
+A rather arbitrary threshold of .4 to include _bad luck_ participants which migh have encountered a long train of mismatch trials. I should probably re-consider this.
+
+```{r}
+# Poor performers
+poor_performers <- agg_data$participant[agg_data$mean_acc < .4]
+
+# Remove poor performers
+data <- data %>% 
+  filter(!(participant %in% poor_performers))
+
+# Aggregate
+agg_data <- data %>% 
+  group_by(participant) %>% 
+  summarise(mean_acc = mean(enc_acc),
+            sd_acc = sd(enc_acc))
+
+# Plot clean sample
+ggplot(data = agg_data,
+       mapping = aes(x=1, y = mean_acc)) +
+  geom_boxplot() +
+  geom_jitter(shape=10, position=position_jitter(0.2)) +
+  ylab("Mean acc") + 
+  ylim(c(0,1)) +
+  labs(title = paste("Overall prediction acc"))
+
+```
+After removing bad performes, we can look at preformance as a function of prior strength.
+
+```{r}
+# Aggregate
+agg_data <- data %>% 
+  group_by(participant, scn_condition) %>% 
+  summarise(mean_acc = mean(enc_acc),
+            sd_acc = sd(enc_acc))
+
+# Plot
+agg_data$scn_condition <- as.factor(agg_data$scn_condition)
+ggplot(data = agg_data,
+       mapping = aes(x = scn_condition, y = mean_acc, color = scn_condition)) +
+  geom_boxplot() +
+  geom_jitter(shape=10, position=position_jitter(0.2)) +
+  ylim(c(0,1)) +
+  ylab("Mean acc") + 
+  xlab("Prior strength") +
+  labs(title = paste("Prediction acc by prior strength and session")) +
+  theme(legend.position = "top") +
+  scale_color_discrete(name = "Prior strength", labels= c("Flat", "Weak", "Strong"))
+```
+
+## Compute performance at encoding
+First I will look at cummulative accuracy. It'd be probably best to combine this with the refresh data.
+```{r}
+
+# Compute cummulative acc by participant and prior strength
+data <- data %>% 
+  group_by(participant, scn_condition) %>% 
+  mutate(cumm_acc = cummean(enc_acc))
+
+data$trial_n <- NA
+data2 <- data %>% 
+  group_by(participant, scn_cat) %>%
+  filter(scn_condition == 1) %>% 
+  mutate(trial_n = c(1:24))
+data3 <- data %>% 
+  group_by(participant, scn_cat) %>%
+  filter(scn_condition == 2) %>% 
+  mutate(trial_n = c(1:80))
+data <- rbind(data2,data3)
+
+# Aggregate
+agg_data <- data %>% 
+  group_by(trial_n, scn_condition) %>% 
+  summarise(cumm_av = mean(cumm_acc),
+            cumm_sd = sd(cumm_acc))
+agg_data$cumm_sd[is.na(agg_data$cumm_sd)] <- 0
+
+# Plot
+ggplot(data = agg_data,
+       mapping = aes(x = trial_n, y = cumm_av, color=factor(scn_condition))) +
+  geom_line() +
+  facet_grid(cols = vars(scn_condition),scales = "free_x") + 
+  ylab("Cummulative acc") + 
+  xlab("Trial N") +
+  labs(title = paste("Cummulative acc by scene and group")) +
+  theme(legend.position = "top") +
+  scale_color_discrete(name = "Prior strength", labels= c("Flat", "Strong")) +
+   geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_text(aes(x=3, label="encoding starts", y=.6), colour="black", angle=90, vjust = -1, size=5)+ 
+  geom_ribbon(aes(ymin=agg_data$cumm_av- agg_data$cumm_sd, ymax=agg_data$cumm_av+agg_data$cumm_sd), alpha=.2, colour = NA)
+ 
+```
+
+And here below I'm printing the IDs of the participants excluded for easier use and communication.
+
+```{r}
+
+"Excluded"
+poor_performers
+
+```

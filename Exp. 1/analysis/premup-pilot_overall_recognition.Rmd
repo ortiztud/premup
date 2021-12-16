@@ -1,0 +1,262 @@
+---
+title: "Analysis of the overall object recognition memory test on PREMUP-pilot."
+output: html_document
+---
+
+Author: Javier Ortiz-Tudela (Goethe Uni)
+Started on: 27.01.20
+Last updated on: 05.06.20
+
+```{r setup, include=FALSE}
+## Load libraries.
+library(ggpubr)
+library(rstatix)
+library(psycho)
+library(gridExtra)
+library(dplyr)
+
+## Set directories
+if(Sys.info()["sysname"]=="Linux"){
+  data_dir <- "/home/javier/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/"
+  out_dir <- "/home/javier/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/" 
+}else{
+  data_dir <- "/Users/javierortiz/Documents/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/"
+  out_dir <- "/Users/javierortiz/Documents/pepe/2_Analysis_Folder/PIVOTAL/PREMUP/premup-pilot/outputs/group_level/share/"
+}
+
+## Read-in the data
+full_name <- paste(data_dir, "group_task-rec.csv", sep="")
+
+# Since the data is in a CSV file, you can read it with the csvread function.
+temp <- read.csv2(full_name, sep=";")
+
+# The data file contains a lot of information that we will not need now.
+data <- subset(x = temp,
+               select = c("participant", "session", "fillers", "id_acc", "OvsN", "rec_response"))
+data$fillers[data$OvsN==2] <- 0
+
+# Remove fillers
+data <- data[data$fillers!=1,]
+```
+
+```{r}
+## Overall memory performance
+# First we need to check if participants were able to properly distinguish between "old"
+# and "new" items.
+overall_mem <- data %>% 
+  group_by(participant, session, OvsN) %>% 
+  summarise(n_old = n(), 
+            sum_old = sum(rec_response),
+            sum_new = n_old - sum_old,
+            prop_old = sum_old / n_old)
+
+# Plot by session
+sess_lab <- c("Immediate", "Delayed")
+ggplot(data = overall_mem,
+       aes(x = OvsN, y = prop_old, color=factor(OvsN))) +
+  geom_boxplot(outlier.shape = NA) +
+  facet_grid(cols = vars(session)) + 
+  geom_jitter(shape=16, position=position_jitter(0.1)) +
+  ylab("Prop old") + 
+  xlab("") +
+  labs(title = paste("Overall performance by session")) +
+  theme(legend.position = "top") +
+  scale_color_discrete(name = "Response type", labels= c("Hits", "False Alarms")) + 
+  theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+
+# Task sensitivity 
+I will compute d' in the entire sample to assess whether, overall, it is possible to measure memory for out task set up. I will do so by session since what is true for one cannot be true for the other one.
+
+```{r}
+# We will only look at session 1 here
+which_ses = 1
+
+# Initialize d' dataframe
+which_sub <- unique(data$participant[data$session==which_ses])
+nSubs <- length(which_sub)
+SDT_out <- data.frame(participant=which_sub,
+                      dprime=rep(9999,nSubs),
+                      beta=rep(9999,nSubs))
+
+# I have not found a more elegant way, so I'm looping through subjects to get the indeces.
+c=1
+for(cSub in unique(data$participant)){
+  n_hit <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==1 & data$rec_response==1)
+  n_miss <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==1 & data$rec_response==0)
+  n_fa <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==2 & data$rec_response==1)
+  n_cr <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==2 & data$rec_response==0)
+  
+  temp <- dprime(n_hit, n_miss, n_fa, n_cr)
+  
+  SDT_out$hit[c] <- n_hit/(n_hit+n_miss)
+  SDT_out$fa[c] <- n_fa/(n_fa+n_cr)
+  SDT_out$dprime[c] <- temp$dprime
+  SDT_out$beta[c] <- temp$beta
+  
+    c=c+1
+}
+
+t.test(SDT_out$dprime, mu=0)
+
+```
+Since d' is significantly different from 0, we can say that our task set up (ie.., combination of task structure and stimuli used) is adecuate to measure memory performance.
+
+# Clean-up low performers
+I will remove participants with a d' below .27 which, according to our newly created function, leaves below 95% of the observations a d prime distributions created from random patterns of responses. This threshol seems a little bit less arbitrary than any other we have been able to figure out. 
+
+```{r}
+# Compute corrected hits
+SDT_out$corr_hit <- SDT_out$hit- SDT_out$fa
+
+# Find outliers
+poor_performers <- SDT_out$participant[SDT_out$dprime < .27]
+poor_performers <- c(poor_performers, 23) # Extremly conservative (only 35 old responses)
+
+# Repeat plot with poor performers highlighted
+poor_performers_highlight <- overall_mem %>% 
+  filter(participant %in% poor_performers)
+ggplot(data = overall_mem,
+       aes(x = OvsN, y = prop_old, color=factor(OvsN))) +
+  geom_boxplot(outlier.shape = NA) +
+  facet_grid(cols = vars(session)) + 
+  ylab('Proportion of "old" responses') + 
+  xlab("") +
+  labs(title = paste("Overall performance by session")) +
+  theme(legend.position = "top") +
+  scale_color_discrete(name = "Response type", labels= c("Hits", "False Alarms")) + 
+  theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  geom_point(data=poor_performers_highlight, 
+             aes(x=OvsN,y=prop_old), 
+             shape=1,
+             size=2) + facet_grid(cols = vars(session)) +
+  geom_jitter(data = overall_mem %>% filter(!(participant %in% poor_performers)),
+              shape=16,  size=2,position=position_jitter(0.1)) +
+  theme(axis.text.x = element_blank())
+
+# Remove outliers
+clean_overall <- overall_mem %>% 
+  filter(!(participant %in% poor_performers),
+         session == which_ses)
+
+# Remove from SDT
+clean_SDT <- SDT_out %>% 
+  filter(!(participant %in% poor_performers))
+t.test(clean_SDT$dprime, mu=0, alternative = "greater")
+
+# Plot
+ggplot(data = clean_overall,
+       aes(x = OvsN, y = prop_old, color=factor(OvsN))) +
+  geom_boxplot() +
+  geom_jitter(shape=10, position=position_jitter(0.2)) +
+  ylab("Prop old") + 
+  xlab("") +
+  labs(title = paste("Session", which_ses)) +
+  theme(legend.position = "top") +
+  scale_color_discrete(name = "Response type", labels= c("Hits", "False Alarms")) + 
+  theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+# Save it for later
+excluded_sess1 <- poor_performers
+```
+
+
+```{r}
+# Plot both sessions with session 1 poor performers removed
+clean_overall <- overall_mem %>% 
+  filter(!(participant %in% poor_performers))
+         
+ggplot(data = clean_overall,
+       aes(x = OvsN, y = prop_old, color=factor(OvsN))) +
+  geom_boxplot() +
+  facet_grid(cols = vars(session))+
+  geom_jitter(shape=10, position=position_jitter(0.2)) +
+  ylab('Proportiong of "old" responses') + 
+  xlab("") +
+  theme(legend.position = "top") +
+  scale_color_discrete(name = "Response type", labels= c("Hits", "False Alarms")) + 
+  theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+``` 
+
+
+Once low performers in session 1 have been removed, I will check for performance in session 2 in a similar way as before.
+
+```{r}
+# We will only look at session 1 here
+which_ses = 2
+
+# Initialize d' dataframe
+which_sub <- unique(data$participant[data$session==which_ses])
+nSubs <- length(which_sub)
+SDT_out <- data.frame(participant=which_sub,
+                      dprime=rep(9999,nSubs),
+                      beta=rep(9999,nSubs))
+
+# I have not found a more elegant way, so I'm looping through subjects to get the indeces.
+c=1
+for(cSub in unique(data$participant)){
+  n_hit <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==1 & data$rec_response==1)
+  n_miss <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==1 & data$rec_response==0)
+  n_fa <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==2 & data$rec_response==1)
+  n_cr <- sum(data$participant==cSub & data$session==which_ses & data$OvsN==2 & data$rec_response==0)
+  
+  temp <- dprime(n_hit, n_miss, n_fa, n_cr)
+  
+  SDT_out$hit[c] <- n_hit/(n_hit+n_miss)
+  SDT_out$fa[c] <- n_fa/(n_fa+n_cr)
+  SDT_out$dprime[c] <- temp$dprime
+  SDT_out$beta[c] <- temp$beta
+  
+    c=c+1
+}
+
+t.test(SDT_out$dprime, mu=0)
+
+
+``` 
+
+
+D' is still different from 0, so we move on to remove low performers in session 2. I will apply the same artibitrary filter as before (i.e., hits - FAs >1%)
+
+```{r}
+# Compute corrected hits
+SDT_out$corr_hit <- SDT_out$hit- SDT_out$fa
+
+# Find outliers
+poor_performers <- SDT_out$participant[SDT_out$corr_hit < .1]
+
+# Remove outliers
+clean_overall <- overall_mem %>% 
+  filter(!(participant %in% poor_performers),
+         session == which_ses)
+
+# Plot
+ggplot(data = clean_overall,
+       aes(x = OvsN, y = prop_old, color=factor(OvsN))) +
+  geom_boxplot() +
+  geom_jitter(shape=10, position=position_jitter(0.2)) +
+  ylab("Prop old") + 
+  xlab("") +
+  labs(title = paste("Session", which_ses)) +
+  theme(legend.position = "top") +
+  scale_color_discrete(name = "Response type", labels= c("Hits", "False Alarms"))
+
+# Save them for later
+excluded_sess2 <- poor_performers
+```
+
+
+And here below I'm printing the IDs of the participants excluded for easier use and communication.
+
+```{r}
+"Excluded session 1"
+sort(excluded_sess1)
+"Excluded session 2"
+sort(excluded_sess2)
+```
