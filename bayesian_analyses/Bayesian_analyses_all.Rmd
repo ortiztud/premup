@@ -1,0 +1,380 @@
+---
+title: "PREMUP_bayesian"
+output: 
+  html_document:
+      toc: true
+      theme: united
+      date: '2022-08-12'
+---
+Bayesian analyses for the PREMUP studies
+```{r setup, include=FALSE}
+# load the packages
+library("brms")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Experiment 1
+### Model comparison
+```{r model comparison, warning=FALSE}
+# load the data
+load(file="premup_pilot_rec_MLM_bayesian.Rdata")
+
+# results model comparison
+mod_comp
+
+# comparing the models and reporting the bayesian  factors
+red1_vs_max
+BF_red1_vs_max
+red2a_vs_red1
+BF_red2a_vs_red1
+red2b_vs_red1
+BF_red2b_vs_red1
+red3_vs_red2b
+BF_red3_vs_red2b
+```
+
+### Analysis winning model
+First show some descriptives and diagnostic plots
+```{r}
+summary(red_model2b)
+
+mcmc_plot(red_model2b, 
+          type = "areas", 
+          prob = 0.95)
+
+plot(red_model2b)
+
+```
+Now analyze the main effects 
+```{r}
+# interaction
+test_inter
+BF_test_inter
+# test the effect of session
+test_session
+BF_test_session
+# test the effect of PElevel
+test_PE
+BF_test_PE
+
+# test linear and quadratic interaction with session
+hlinearinteraction
+hquadraticinteraction
+
+# main trends
+hlinear
+hquadratic
+
+# now immediate and delayed
+hlinear_immediate
+
+red_model2b_immediate
+
+hlinear_delayed
+
+red_model2b_delayed
+```
+
+Analyze confidence ratings
+```{r}
+# compare the winning model (2b) with the same model with the addition of 
+# confidence (low vs high)
+# (NB: we needed to create a new model - red_model2b_noNA - with some trials
+# with NAs on the confidence excluded = 36 in total)
+
+red2b_conf_vs_red2b
+
+# Bayes factor
+BF_red2b_conf_vs_red2b
+
+# now we want to test the interaction between confidence and session
+red2b_conf_inter_vs_red2b_conf
+BF_red2b_conf_inter_vs_red2b_conf
+
+# add the interaction between session and confidence
+red_model2b_conf_noPEthreeway_inter
+
+# compare it with a model without that interaction
+red2b_conf_sess_by_conf_vs_red2b_conf
+BF_red2b_conf_sess_by_conf_vs_red2b_conf
+
+# now add the interaction with PE
+red_model2b_twowayPE_inter_vs_red2b_conf
+
+# compare it with a model without that interaction
+red_model2b_twowayPE_inter
+BF_red_model2b_twowayPE_inter_vs_red2b_conf
+
+# now test the three way interaction
+red_model2b_conf_inter
+red2b_conf_inter_vs_red_model2b_conf_two_inter
+BF_red2b_conf_inter_vs_red_model2b_conf_two_inter
+
+# evidence for quadratic component in the high-confidence items
+hquadratic_high
+
+# evidence for the quadratic component in the low-confidence items
+hquadratic_low
+
+# remove all the variables
+rm(list=ls())
+```
+
+## Experiment 2a
+### Model comparison
+```{r, warning=FALSE}
+# load the data
+load(file="premup_flat_rec_MLM_bayesian.Rdata")
+
+# results model comparison
+mod_comp
+
+# comparing the models and reporting the bayesian  factors
+red1_vs_max
+BF_red1_vs_max
+red2a_vs_red1
+BF_red2a_vs_red1
+red2b_vs_red1
+BF_red2b_vs_red1
+red3_vs_red2b
+BF_red3_vs_red2b
+```
+
+### Analysis winning model
+First show some descriptives and diagnostic plots
+```{r}
+summary(red_model2b)
+
+mcmc_plot(red_model2b, 
+          type = "areas", 
+          prob = 0.95)
+
+plot(red_model2b)
+
+```
+Now analyze the main effects 
+```{r}
+# interaction
+test_inter
+BF_test_inter
+# test the effect of session
+test_session
+BF_test_session
+# test the effect of PElevel
+test_PE
+BF_test_PE
+# test the NULL effect of PElevel
+BF_test_PE01
+
+# test the NULL effect of PElevel on the first half
+test_inter_1half
+BF_test_inter_1half
+
+test_PE_1half
+BF_test_PE_1half
+
+BF_test_PE01_1half
+```
+
+Analysis confidence
+```{r}
+# test the model with confidence vs model without confidence
+red2b_conf_vs_red2b
+BF_red2b_conf_vs_red2b
+
+# test the interaction with sesison
+red2b_conf_sess_by_conf_vs_red2b_conf
+BF_red2b_conf_sess_by_conf_vs_red2b_conf
+
+# test the two way interaction with PE
+red_model2b_twowayPE_inter_vs_red2b_conf
+BF_red_model2b_twowayPE_inter_vs_red2b_conf
+
+# test the three way interaction
+red2b_conf_inter_vs_red2b_conf
+BF_red2b_conf_inter_vs_red2b_conf
+
+rm(list=ls())
+
+```
+
+## Experiment 2b
+### Model comparison
+```{r, warning=FALSE}
+# load the data
+load(file="premup_priors_rec_MLM_bayesian.Rdata")
+
+ # results model comparison
+mod_comp
+
+# comparing the models and reporting the bayesian  factors
+red1_vs_max
+BF_red1_vs_max
+red2a_vs_red1
+BF_red2a_vs_red1
+red2b_vs_red1
+BF_red2b_vs_red1
+red3_vs_red2b
+BF_red3_vs_red2b
+```
+
+### Analysis winning model
+First show some descriptives and diagnostic plots
+```{r}
+summary(red_model2b)
+
+# select only some variables to plot
+vars<-c("b_Intercept", "b_PE_level.L", "b_PE_level.Q", "b_session_contr", 
+        "b_PE_level.L:session_contr", "b_PE_level.Q:session_contr", 
+        "sd_participant__Intercept", "sd_participant__session_contr", 
+        "cor_participant__Intercept__session_contr")
+
+
+mcmc_plot(red_model2b, 
+          type = "areas", 
+          prob = 0.95,
+          variable = vars
+          )
+
+plot(red_model2b)
+
+```
+Now analyze the main effects 
+```{r}
+# interaction
+test_inter
+BF_test_inter
+# test the effect of session
+test_session
+BF_test_session
+# test the effect of PElevel
+test_PE
+BF_test_PE
+
+# test the NULL effect of PElevel
+BF_test_PE01
+
+# test the NULL effect of PElevel on the first half
+test_inter_1half
+BF_test_inter_1half
+
+test_PE_1half
+BF_test_PE_1half
+
+BF_test_PE01_1half
+```
+
+Now analyze the confidence data
+```{r}
+# test a model with confidence
+red2b_conf_vs_red2b
+BF_red2b_conf_vs_red2b
+
+# test the interaction with session
+red2b_conf_sess_by_conf_vs_red2b_conf
+BF_red2b_conf_sess_by_conf_vs_red2b_conf
+
+# test the interaction with PE
+red_model2b_twowayPE_inter_vs_red2b_conf
+BF_red_model2b_twowayPE_inter_vs_red2b_conf
+
+# check the three-way interaction with PE
+red2b_conf_inter_vs_red2b_conf
+BF_red2b_conf_inter_vs_red2b_conf
+
+# remove
+rm(list=ls())
+
+```
+
+## Experiment 3
+### Model comparison
+```{r, warning=FALSE}
+# load the data
+load(file="premup_three_rec_MLM_bayesian.Rdata")
+
+# results model comparison
+mod_comp
+
+# comparing the models and reporting the bayesian  factors
+
+# full model vs model without random slopes for PE
+red1_vs_max
+BF_red1_vs_max
+
+# full model vs model without random intercept for participant
+red2a_vs_red1
+BF_red2a_vs_red1
+
+```
+
+### Analysis winning model
+First show some descriptives and diagnostic plots
+```{r}
+summary(red_model1)
+
+vars_t<-c("b_Intercept", "b_PE_level.L", "b_PE_level.Q", "b_session_contr", 
+        "b_PE_level.L:session_contr", "b_PE_level.Q:session_contr", 
+        "sd_participant__Intercept" 
+        )
+
+
+mcmc_plot(red_model1, 
+          type = "areas", 
+          prob = 0.95, 
+          variable = vars_t)
+
+plot(red_model1)
+
+```
+Now analyze the main effects 
+```{r}
+# interaction
+test_inter
+BF_test_inter
+
+# test the effect of session
+test_session
+BF_test_session
+
+# test the effect of PElevel
+test_PE
+BF_test_PE
+
+# test linear and quadratic interaction with session
+hlinearinteraction<-hypothesis(red_model1, c("PE_level.L:session_contr=0",
+                                              "PE_level.L:session_contr>0", 
+                                             "PE_level.L:session_contr<0"))
+hlinearinteraction
+
+hquadraticinteraction
+
+ # main trends
+hlinear
+hquadratic
+
+hlinear_delayed
+
+hlinear_immediate
+
+
+```
+
+Now confidence
+```{r}
+# test the addition of confidence
+red1_conf_vs_red2b
+BF_red1_conf_vs_red2b
+
+# test the interaction with PE
+red_model1_twowayPE_inter_vs_red1_conf
+BF_red_model1_twowayPE_inter_vs_red1_conf
+
+# test the interaction with session
+red_model1_twowaysession_inter_vs_red1_conf
+BF_red_model1_twowaysession_inter_vs_red1_conf
+
+# test the triple way interaction
+red1_conf_inter_vs_red1_conf
+BF_red1_conf_inter_vs_red1_conf
+```
